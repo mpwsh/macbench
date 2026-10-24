@@ -1,0 +1,12 @@
+[package]
+name = "macbench"
+version = "0.1.0"
+edition = "2021"
+description = "Small dependency-free CPU / memory / SSD benchmark for Apple Silicon Macs"
+
+[dependencies]
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
