@@ -1,31 +1,44 @@
-name: build
+name: release
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
-  pull_request:
+  workflow_dispatch:
+  release:
+    types: [created]
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    runs-on: macos-latest
+  macos-arm64:
+    # Only for v* releases (manual runs build without publishing)
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
+    runs-on: macos-latest # Apple Silicon
+    env:
+      BIN: ${{ github.event.repository.name }}-arm64-darwin
     steps:
       - uses: actions/checkout@v4
 
-      - run: cargo test --release
-      - run: cargo build --release
-      - run: cp target/release/macbench macbench-macos-arm64
+      - name: Build
+        run: cargo build --release
 
-      - uses: actions/upload-artifact@v4
+      - name: Package
+        run: |
+          cp target/release/${{ github.event.repository.name }} "$BIN"
+          shasum -a 256 "$BIN" | cut -d ' ' -f 1 > "$BIN.sha256"
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
         with:
-          name: macbench-macos-arm64
-          path: macbench-macos-arm64
+          files: |
+            ${{ env.BIN }}
+            ${{ env.BIN }}.sha256
 
-      - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: gh release create "$GITHUB_REF_NAME" macbench-macos-arm64 --generate-notes
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Upload as artifact (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BIN }}
+          path: |
+            ${{ env.BIN }}
+            ${{ env.BIN }}.sha256
